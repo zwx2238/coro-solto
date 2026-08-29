@@ -29,10 +29,14 @@ import { moduleCacheManifest } from './scripts/module-cache.mjs';
    Régua: `tools/eval/ssr-render-check.mjs` (`--mutante=sem-publicjs` reproduz o pacote
    sem `public/js` e volta a ficar vermelha). */
 const MANIFESTO_JS = moduleCacheManifest();
+const OPEN_GAMES_BASE_PATH = (
+  process.env.PUBLIC_OPEN_GAMES_BASE_PATH ?? ''
+).replace(/\/+$/, '');
 
 export default defineConfig({
   output: 'static',
   adapter: vercel(),
+  base: OPEN_GAMES_BASE_PATH || undefined,
   server: {
     port: Number(process.env.PORT) || 4321,
   },

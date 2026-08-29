@@ -5,6 +5,11 @@ import { DISCORD_URL, TELEGRAM_URL, GITHUB_URL, SUPPORT_URL_BR, SUPPORT_URL_INTL
 /* ESTÁTICA de propósito: o Stateloop não publica SSR e `prerender = false` aqui
    fazia o build não emitir dist/client/index.html. Idioma por país: /api/geo-lang. */
 const V = pkg.version;
+const OPEN_GAMES_SELF_HOSTED =
+  import.meta.env.PUBLIC_OPEN_GAMES_SELF_HOSTED === '1';
+const OPEN_GAMES_BASE_PATH = (
+  import.meta.env.PUBLIC_OPEN_GAMES_BASE_PATH ?? ''
+).replace(/\/+$/, '');
 declare const __MANIFESTO_JS__: { modules: string[]; revision: string };
 const { modules: MODULOS, revision: JS_REV } = __MANIFESTO_JS__;
 const IMPORTMAP = JSON.stringify({
@@ -26,10 +31,33 @@ const IMPORTMAP = JSON.stringify({
    PUBLIC_SUPPORT_URL_* mudava o /apoie e não o menu do jogo (CodeRabbit, PR #284). */
 window.__SUPPORT = { br: SUPPORT_URL_BR, intl: SUPPORT_URL_INTL };
 </script>
+<script is:inline define:vars={{ OPEN_GAMES_SELF_HOSTED, OPEN_GAMES_BASE_PATH }}>
+window.__OPEN_GAMES_SELF_HOSTED__ = OPEN_GAMES_SELF_HOSTED;
+window.__OPEN_GAMES_BASE_PATH__ = OPEN_GAMES_BASE_PATH;
+if (OPEN_GAMES_SELF_HOSTED) {
+  var nativeFetch = window.fetch.bind(window);
+  window.fetch = function(input, init) {
+    try {
+      var raw = input instanceof Request ? input.url : String(input);
+      var url = new URL(raw, location.href);
+      var apiRoot = OPEN_GAMES_BASE_PATH + '/api/';
+      if (url.origin === location.origin &&
+          (url.pathname.startsWith(apiRoot) || url.pathname.startsWith('/api/'))) {
+        return Promise.resolve(new Response('{"disabled":true}', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }));
+      }
+    } catch (_) {}
+    return nativeFetch(input, init);
+  };
+}
+</script>
 <script is:inline>
 /* Fetch do /api/geo-lang ANTES dos módulos; o i18n consome a promise no boot.
    Sem API (host estático puro) rejeita e o i18n cai no navegador. */
 window.__GEO_LANG__ = (function () {
+  if (window.__OPEN_GAMES_SELF_HOSTED__) return null;
   try {
     if (new URLSearchParams(location.search).get('lang')) return null;
     if (localStorage.getItem('cs_lang')) return null;
@@ -155,6 +183,10 @@ window.__GEO_LANG__ = (function () {
       c.stack = stack ? String(stack).slice(0, 4000) : null;
       var corpo = JSON.stringify(c);
       corpos[fp] = corpo;
+      if (window.__OPEN_GAMES_SELF_HOSTED__) {
+        reportando = false;
+        return { fp: fp, corpo: corpo };
+      }
       /* sendBeacon sobrevive à aba fechando, que é justamente quando o jogador some
          depois de um crash. O clique manual usa fetch para poder confirmar o envio. */
       if (!(navigator.sendBeacon && navigator.sendBeacon('/api/jserror', new Blob([corpo], {type:'application/json'}))))
@@ -228,7 +260,7 @@ window.__GEO_LANG__ = (function () {
       var envio;
       try {
         var corpo = relatorioFalha;
-        envio = corpo
+        envio = corpo && !window.__OPEN_GAMES_SELF_HOSTED__
           ? fetch('/api/jserror', { method:'POST', headers:{'content-type':'application/json'}, body: corpo, keepalive: true })
               .then(function(r){ return r.ok; }, function(){ return false; })
           : Promise.resolve(false);
@@ -623,8 +655,12 @@ window.__GEO_LANG__ = (function () {
        inteiro - nenhuma informação saiu de lugar, uma ganhou destaque.
        A seta é U+2197, glifo geométrico: o redesign proíbe emoji. -->
   <nav class="aaa-links" aria-label="Links do jogo">
-    <a href="/ranking" target="_blank" rel="noopener">RANKING GLOBAL <span aria-hidden="true">↗</span></a>
-    <a href="/mapa" target="_blank" rel="noopener">MAPA DA TRETA <span aria-hidden="true">↗</span></a>
+    {!OPEN_GAMES_SELF_HOSTED && (
+      <>
+        <a href="/ranking" target="_blank" rel="noopener">RANKING GLOBAL <span aria-hidden="true">↗</span></a>
+        <a href="/mapa" target="_blank" rel="noopener">MAPA DA TRETA <span aria-hidden="true">↗</span></a>
+      </>
+    )}
     <a href="/sobre" target="_blank" rel="noopener">SOBRE <span aria-hidden="true">↗</span></a>
   </nav>
 
@@ -650,7 +686,9 @@ window.__GEO_LANG__ = (function () {
       <button class="cs-item" data-act="ranking" type="button"><span class="cs-tick">▸</span>RANKING</button>
       <button class="cs-item" data-act="sobre" type="button"><span class="cs-tick">▸</span>COMO JOGAR</button>
       <button class="cs-item" data-act="config" type="button"><span class="cs-tick">▸</span>CONFIGURAÇÕES</button>
-      <button class="cs-item" data-act="feedback" type="button"><span class="cs-tick">▸</span>ENVIE SEU FEEDBACK</button>
+      {!OPEN_GAMES_SELF_HOSTED && (
+        <button class="cs-item" data-act="feedback" type="button"><span class="cs-tick">▸</span>ENVIE SEU FEEDBACK</button>
+      )}
       <button class="cs-item" data-act="apoie" type="button"><span class="cs-tick">▸</span>APOIE O JOGO</button>
     </nav>
     <!-- plate do jogador: nível/XP derivados dos stats locais (mesma fonte do RANKING).
@@ -696,7 +734,9 @@ window.__GEO_LANG__ = (function () {
         <a href="/sobre" target="_blank">Sobre</a>
         <!-- FEEDBACK saiu da lista principal (o redesign fecha o menu em 4 itens) e
              desceu pra cá. É <button> e não <a> porque abre painel interno, não rota. -->
-        <button type="button" id="mf-feedback" class="mf-link">Feedback</button>
+        {!OPEN_GAMES_SELF_HOSTED && (
+          <button type="button" id="mf-feedback" class="mf-link">Feedback</button>
+        )}
         <div class="mf-social">
           <a href={DISCORD_URL} target="_blank" rel="noopener" aria-label="Discord do CORO SOLTO">
             <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.198.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z"/></svg>

@@ -31,6 +31,11 @@ export class Sfx {
     this.onDuck = null;          // hook externo (main.js: abaixa a música do menu)
   }
   async loadManifest() {
+    if (globalThis.__OPEN_GAMES_SELF_HOSTED__ === true) {
+      this.pack = null;
+      return;
+    }
+
     // Local pack first (audio/manifest.json, gitignored — dev's own CS samples);
     // fall back to the committed CC0 pack (real gun recordings, public domain) so
     // production plays real shots instead of the synth. Never throws.

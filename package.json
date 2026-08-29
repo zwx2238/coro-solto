@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "npm run copy-wasm && astro dev",
     "build": "npm run copy-wasm && astro build && node scripts/prune-dist.mjs",
+    "build:game": "npm run build && node scripts/open-games-build.mjs",
     "release": "node scripts/release.mjs",
     "setup": "node scripts/setup.mjs",
     "prepare": "node scripts/install-git-hooks.mjs",

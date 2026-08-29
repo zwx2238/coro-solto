@@ -19,6 +19,8 @@ import { enableStylize } from './stylize.js';
 import { resolveInspectionScreen } from './screenquery.js';
 import { LoadingCharacterStage } from './loading3d.js';
 
+const selfHosted = globalThis.__OPEN_GAMES_SELF_HOSTED__ === true;
+
 /* ---------------- settings & nickname ---------------- */
 const SETTINGS_KEY = 'awpbr_settings';
 const savedSettings = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
@@ -383,25 +385,28 @@ const MENU_MUSIC_VOL = 0.3;
 // Este array é só o FALLBACK do primeiro quadro: a fonte de verdade é a pasta, via
 // audio/manifest.json (chave `menuMusic`). Falha de rede mantém o fallback.
 const MENU_TRACKS = Array.from({ length: 26 }, (_, i) => `/audio/menu-music/m${String(i + 1).padStart(2, '0')}.mp3`);
-fetch(`/audio/manifest.json?v=${VERSION}`)
-  .then((response) => (response.ok ? response.json() : null))
-  .then((manifest) => {
-    const list = manifest && Array.isArray(manifest.menuMusic) ? manifest.menuMusic : null;
-    if (!list || !list.length) return;
-    // manifest grava caminho relativo (`audio/...`); a URL do <Audio> é absoluta (`/audio/...`).
-    const novas = list.map((u) => (u.startsWith('/') ? u : `/${u}`));
-    if (novas.join('|') === MENU_TRACKS.join('|')) return;
-    MENU_TRACKS.splice(0, MENU_TRACKS.length, ...novas);
-    // O boot chama startMenuMusic() antes desta promessa resolver e _ensureMusic cacheia o
-    // <Audio> pra sempre — sem soltar o cache, a lista da pasta nunca escolhe faixa.
-    tracksTrocadas = true;
-    // Mudo ainda: dá pra trocar agora. Com som tocando não — a troca fica pendente e o
-    // _ensureMusic pega na próxima visita ao menu, que é quando a faixa muda de qualquer jeito.
-    if (!musicArmed) startMenuMusic();
-  })
-  .catch(() => {});
+if (!selfHosted) {
+  fetch(`/audio/manifest.json?v=${VERSION}`)
+    .then((response) => (response.ok ? response.json() : null))
+    .then((manifest) => {
+      const list = manifest && Array.isArray(manifest.menuMusic) ? manifest.menuMusic : null;
+      if (!list || !list.length) return;
+      // manifest grava caminho relativo (`audio/...`); a URL do <Audio> é absoluta (`/audio/...`).
+      const novas = list.map((u) => (u.startsWith('/') ? u : `/${u}`));
+      if (novas.join('|') === MENU_TRACKS.join('|')) return;
+      MENU_TRACKS.splice(0, MENU_TRACKS.length, ...novas);
+      // O boot chama startMenuMusic() antes desta promessa resolver e _ensureMusic cacheia o
+      // <Audio> pra sempre — sem soltar o cache, a lista da pasta nunca escolhe faixa.
+      tracksTrocadas = true;
+      // Mudo ainda: dá pra trocar agora. Com som tocando não — a troca fica pendente e o
+      // _ensureMusic pega na próxima visita ao menu, que é quando a faixa muda de qualquer jeito.
+      if (!musicArmed) startMenuMusic();
+    })
+    .catch(() => {});
+}
 let menuMusic = null, musicArmed = false, musicFade = null, tracksTrocadas = false;
 function _ensureMusic() {
+  if (selfHosted) return null;
   if (menuMusic && !tracksTrocadas) return menuMusic;
   if (menuMusic) { menuMusic.pause(); menuMusic = null; }
   tracksTrocadas = false;
@@ -417,6 +422,7 @@ function _ensureMusic() {
 }
 function startMenuMusic() {
   const m = _ensureMusic();
+  if (!m) return;
   if (musicFade) { clearInterval(musicFade); musicFade = null; }
   if (!musicArmed) {
     // tenta autoplay COM SOM (Chrome libera se o site tem Media Engagement Index alto pro
@@ -448,6 +454,7 @@ function stopMenuMusic() {   // fade rápido pra não cortar seco ao entrar na p
 const _armMusic = () => {
   if (musicArmed) return; musicArmed = true;
   const m = _ensureMusic();
+  if (!m) return;
   m.muted = false;
   let v = 0.02; m.volume = v;
   musicFade = setInterval(() => { v += 0.04; m.volume = Math.min(MENU_MUSIC_VOL, v); if (v >= MENU_MUSIC_VOL) { clearInterval(musicFade); musicFade = null; } }, 40);
@@ -469,7 +476,9 @@ function dismissSplash(e) {
   musicArmed = true;
   if (musicFade) { clearInterval(musicFade); musicFade = null; }
   const m = _ensureMusic();
-  m.muted = false; m.volume = MENU_MUSIC_VOL; m.play().catch(() => {});
+  if (m) {
+    m.muted = false; m.volume = MENU_MUSIC_VOL; m.play().catch(() => {});
+  }
 }
 /* Foco no 1º item visível do menu CS: o handler de setas vive no #cs-menu e só dispara com
    o foco lá dentro. Guardas: não rouba foco de campo de texto nem do painel de setup. */
@@ -733,7 +742,7 @@ function getSessionId() {
 }
 let telemetrySent = true;
 function sendTelemetry() {
-  if (telemetrySent || testMode || !game) return;
+  if (telemetrySent || testMode || selfHosted || !game) return;
   telemetrySent = true;   // uma partida = uma linha, mesmo com quit + beforeunload juntos
   const g = game;
   const payload = {
@@ -781,9 +790,11 @@ if (LANG === 'en') for (const a of document.querySelectorAll('.menu-footer a')) 
 /* PICKS — "o que as pessoas escolhem" (dono, 06/08). sendBeacon: nunca atrasa nem
    quebra o jogo; o servidor conta por (kind, key) na picks_daily (migration 013). */
 function _pick(kind, key) {
+  if (selfHosted) return;
   try { navigator.sendBeacon('/api/pick', new Blob([JSON.stringify({ kind, key })], { type: 'application/json' })); } catch { /* sem beacon: paciência */ }
 }
 function _picks(lote) {
+  if (selfHosted) return;
   try { navigator.sendBeacon('/api/pick', new Blob([JSON.stringify({ picks: lote })], { type: 'application/json' })); } catch { /* idem */ }
 }
 /* PRESENÇA ANÔNIMA — o que o "N online" do rodapé passou a contar (07/08).
@@ -799,7 +810,7 @@ function _picks(lote) {
    45 s contra a janela de 2 min da view (migration 014): perder um pacote não
    apaga ninguém da conta. */
 function _pingPresenca() {
-  if (testMode) return;
+  if (testMode || selfHosted) return;
   if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
   const payload = JSON.stringify({ anonId: getAnonId() });
   try {
@@ -815,7 +826,7 @@ function _pingPresenca() {
  * Contrato: /api/{match,funnel,perf,acquisition} e tools/eval/telemetry-check.mjs. */
 // FUNIL (017): land → menu → match_start → match_end → quit. Converte "chegou a jogar?".
 function _funnel(step) {
-  if (testMode) return;
+  if (testMode || selfHosted) return;
   try {
     navigator.sendBeacon('/api/funnel', new Blob([
       JSON.stringify({ step, sessionId: getSessionId() }),
@@ -826,7 +837,7 @@ function _funnel(step) {
 // sensível); UTM e ?ref= lidos da URL de entrada. first-touch-wins no servidor.
 let _acqSent = false;
 async function _sendAcquisition() {
-  if (testMode || _acqSent) return;
+  if (testMode || selfHosted || _acqSent) return;
   try { if (localStorage.getItem('cs_acq')) { _acqSent = true; return; } } catch {}
   const u = new URLSearchParams(location.search);
   const payload = {
@@ -860,7 +871,7 @@ async function _sendAcquisition() {
 let _perfSent = false;
 const _perfLoadMs = Math.round(performance.now());
 function _sendPerf() {
-  if (testMode || _perfSent) return;
+  if (testMode || selfHosted || _perfSent) return;
   _perfSent = true;
   const aguardaLive = () => {
     const g = window.__game;
@@ -905,7 +916,7 @@ function _perfFinish(bootMs, frames) {
 let _matchEventSent = false;
 let _matchEventId = null;
 function sendMatchEvent(result) {
-  if (_matchEventSent || testMode || !game) return;
+  if (_matchEventSent || testMode || selfHosted || !game) return;
   _matchEventSent = true;
   game._flushTraining?.();   // BOTBRAIN: envia o resto dos frames ao sair/abandonar (idempotente)
   const g = game, p = g.player, wk = g._wperf || {};
@@ -927,7 +938,7 @@ function sendMatchEvent(result) {
   try { navigator.sendBeacon('/api/match', new Blob([JSON.stringify(payload)], { type: 'application/json' })); } catch { /* fail-silent */ }
 }
 function sendTrainingFrames(blob) {
-  if (testMode || !blob || !registeredNick || !trainingEnabled()) return;
+  if (testMode || selfHosted || !blob || !registeredNick || !trainingEnabled()) return;
   try {
     api('/api/train-frames', {
       uid: getAnonId(), token: getToken(), ...blob,
@@ -944,6 +955,7 @@ function sendTrainingFrames(blob) {
    Régua: `tools/eval/boot-check.mjs`. */
 
 async function _refreshOnline() {
+  if (selfHosted) return;
   try {
     const r = await fetch('/api/online');
     const { online } = await r.json();
@@ -1123,7 +1135,7 @@ async function _startGame(team, charId, enemyFaction) {
   // registra nick no ranking global (silencioso se a API não estiver no ar)
   const nick = $('nick-input').value.trim();
   registeredNick = nick; heartbeatOff = false; rankingBloqueado = '';
-  if (nick && !testMode) {
+  if (nick && !testMode && !selfHosted) {
     api('/api/register', {
       nick, token: getToken(),
       uid: getAnonId(),
@@ -1188,7 +1200,7 @@ function quitToMenu() {
 
 /* ---------------- heartbeat (presença/mapa) ---------------- */
 setInterval(async () => {
-  if (!game || !registeredNick || testMode || heartbeatOff) return;
+  if (!game || !registeredNick || testMode || selfHosted || heartbeatOff) return;
   const res = await api('/api/heartbeat', { uid: getAnonId(), nick: registeredNick, token: getToken() });
   if (res && res.error) heartbeatOff = true;
 }, 30_000);
@@ -1636,14 +1648,16 @@ function autoresDeComunidade() {
    e quando chega redesenha. Nada aqui pode depender do número existir. */
 let mapPlays = {};
 const playsDe = (id) => mapPlays[id] || 0;
-fetch('/api/map-plays')
-  .then((r) => (r.ok ? r.json() : null))
-  .then((j) => {
-    if (!j || !j.plays || typeof j.plays !== 'object') return;
-    mapPlays = j.plays;
-    if (!$('map-screen')?.classList.contains('hidden')) renderMapScreen();
-  })
-  .catch(() => { /* sem banco/rede: a tela fica sem a estatística, e é só isso */ });
+if (!selfHosted) {
+  fetch('/api/map-plays')
+    .then((r) => (r.ok ? r.json() : null))
+    .then((j) => {
+      if (!j || !j.plays || typeof j.plays !== 'object') return;
+      mapPlays = j.plays;
+      if (!$('map-screen')?.classList.contains('hidden')) renderMapScreen();
+    })
+    .catch(() => { /* sem banco/rede: a tela fica sem a estatística, e é só isso */ });
+}
 function visibleMapIds() {
   /* TODOS = o acervo inteiro, ordenado do mais jogado pro menos (empate: ordem do catálogo,
      que é estável — `sort` sem desempate deixava a lista dançar entre renders).
@@ -2057,6 +2071,7 @@ function getToken() {
   return t;
 }
 async function api(path, body) {
+  if (selfHosted) return { disabled: true, error: 'self_hosted' };
   try {
     const r = await fetch(path, body
       ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }
@@ -2103,7 +2118,7 @@ addEventListener('beforeunload', (e) => {
   sendTelemetry();   // aba fechando no meio da partida ainda conta como tempo jogado
   if (emPartida()) { sendMatchEvent('quit'); _funnel('quit'); }   // feat/telemetria
   const pl = partialPayload();
-  if (pl) navigator.sendBeacon('/api/submit-match', new Blob([JSON.stringify(pl)], { type: 'application/json' }));
+  if (pl && !selfHosted) navigator.sendBeacon('/api/submit-match', new Blob([JSON.stringify(pl)], { type: 'application/json' }));
   /* SEGUNDA CAMADA CONTRA O CTRL+W (relato do Daniel Diniz: *"quando fica muito tempo com
      a tecla Control pressionada a página fecha"* — é agachar + andar pra frente formando
      Ctrl+W no Windows). A trava de atalho do game.js resolve de verdade, mas é Chromium e
@@ -2161,7 +2176,7 @@ async function recordMatchStats(s) {
   localStorage.setItem(STATS_KEY, JSON.stringify(st));
   // espelha pro ranking global (avisa na tela se falhar)
   const nick = registeredNick || (nickEl.value || '').trim();
-  if (nick && !testMode) {
+  if (nick && !testMode && !selfHosted) {
     const res = await submitGlobal({
       uid: getAnonId(), nick, token: getToken(), won: s.won, kills: s.kills, deaths: s.deaths,
       headshots: s.headshots, bestStreak: s.bestStreak,
@@ -2253,7 +2268,7 @@ async function renderGlobal(nick) {
     box.innerHTML = '<h3>RANKING GLOBAL</h3>' +
       '<div class="rg-off">desligado por enquanto — o jogo está em alpha e o ranking volta ' +
       'quando o placar for confiável. Seus stats deste navegador continuam contando, ali em cima.</div>' +
-      '<div class="rg-links"><a href="/mapa" target="_blank" style="color:var(--cs)">MAPA AO VIVO ↗</a></div>';
+      (selfHosted ? '' : '<div class="rg-links"><a href="/mapa" target="_blank" style="color:var(--cs)">MAPA AO VIVO ↗</a></div>');
     return;
   }
   if (!data || !data.players) {
@@ -2266,9 +2281,11 @@ async function renderGlobal(nick) {
     (rows
       ? `<table><tr><th>#</th><th>JOGADOR</th><th>K/D</th><th>KILLS</th><th>VIT.</th></tr>${rows}</table>`
       : '<div class="rg-off">ainda vazio — seja o primeiro!</div>') +
-    `<div class="rg-links"><a href="/ranking" target="_blank" style="color:var(--cs)">RANKING COMPLETO ↗</a>` +
-    (nick ? `<a href="/u/${encodeURIComponent(nick)}" target="_blank" style="color:var(--cs)">MEU PERFIL ↗</a>` : '') +
-    `<a href="/mapa" target="_blank" style="color:var(--cs)">MAPA AO VIVO ↗</a></div>`;
+    (selfHosted ? '' : (
+      `<div class="rg-links"><a href="/ranking" target="_blank" style="color:var(--cs)">RANKING COMPLETO ↗</a>` +
+      (nick ? `<a href="/u/${encodeURIComponent(nick)}" target="_blank" style="color:var(--cs)">MEU PERFIL ↗</a>` : '') +
+      `<a href="/mapa" target="_blank" style="color:var(--cs)">MAPA AO VIVO ↗</a></div>`
+    ));
 }
 
 // GLB idle thumbnail (no weapon), rendered off the shared preview renderer.
