@@ -524,7 +524,7 @@ export function initTextures() {
   ];
   const _tl = new THREE.TextureLoader();
   T.posterImgs = POSTER_FILES.map(([f]) => {
-    const t = _tl.load('posters/' + f);
+    const t = _tl.load(new URL('../posters/' + f, import.meta.url).href);
     t.colorSpace = THREE.SRGBColorSpace;
     t.minFilter = THREE.LinearMipmapLinearFilter;
     return t;
@@ -544,7 +544,7 @@ export function initTextures() {
      personagem original. O dono pode trocar o ARQUIVO mantendo o nome e a vaga segue.
      Aspecto medido: 1408×768 = 1,8333. */
   const _mural = (f) => {
-    const t = _tl.load('posters/' + f);
+    const t = _tl.load(new URL('../posters/' + f, import.meta.url).href);
     t.colorSpace = THREE.SRGBColorSpace;
     t.minFilter = THREE.LinearMipmapLinearFilter;
     return t;
@@ -950,7 +950,7 @@ export function initTextures() {
     Object.defineProperty(T.muraisHom, i, {
       enumerable: true, configurable: true,
       get() {
-        const t = _tl.load('posters/or-mural-' + n + '.jpg');
+        const t = _tl.load(new URL('../posters/or-mural-' + n + '.jpg', import.meta.url).href);
         t.colorSpace = THREE.SRGBColorSpace;
         t.minFilter = THREE.LinearMipmapLinearFilter;
         Object.defineProperty(T.muraisHom, i, { value: t, enumerable: true, configurable: true, writable: true });
@@ -973,7 +973,7 @@ export function initTextures() {
            defeito que o dono já reprovou uma vez ("o do chorão está com fundo branco").
            `faltou` deixa quem usa a textura sumir com a peça — ver `_juntar` em
            graffiti_pass.js. Vale pras peças à mão e pras da passada. */
-        const t = _tl.load('img/decals/' + f, undefined, undefined, () => {
+        const t = _tl.load(new URL('../img/decals/' + f, import.meta.url).href, undefined, undefined, () => {
           t.userData.faltou = true;
           if (t.userData.aoFaltar) t.userData.aoFaltar();
           console.warn('[decals] 404 em "' + f + '" — peça escondida (rode scripts/fetch-decals.sh)');

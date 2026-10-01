@@ -43,6 +43,27 @@ check('Layout reads PUBLIC_OPEN_GAMES_SELF_HOSTED', layout.includes("import.meta
 check('Layout head-social Discord is self-hosted gated', /\{!OPEN_GAMES_SELF_HOSTED && \(\s*<a href=\{DISCORD_URL\} rel="noopener"/.test(layout));
 check('Layout head-social Telegram is self-hosted gated', /\{!OPEN_GAMES_SELF_HOSTED && \(\s*<a href=\{TELEGRAM_URL\} rel="noopener"/.test(layout));
 check('Layout head-social GitHub stays ungated', !/\{!OPEN_GAMES_SELF_HOSTED && \(\s*<a href=\{GITHUB_URL\}/.test(layout));
+for (const [page, target] of [['about', 'sobre'], ['sobre', 'about']]) {
+  const source = read(`src/pages/${page}.astro`);
+  check(`${page} play link uses the game base`, /class="btn-cta" href=\{(?:import\.meta\.env\.BASE_URL|`\$\{import\.meta\.env\.BASE_URL\}\?lang=en`)\}/.test(source));
+  check(`${page} language redirect stays under the game base`, source.includes('location.replace(`${import.meta.env.BASE_URL}' + target + '`)'));
+}
+
+const textures = read('public/js/textures.js');
+const textureLoads = [...textures.matchAll(/_tl\.load\((.*?)(?:, undefined, undefined,|\);)/g)].map((m) => m[1]);
+check('all four file texture loading paths are covered', textureLoads.length === 4);
+const textureFiles = ['posters/fixture.png', 'posters/fixture.png', 'posters/or-mural-fixture.jpg', 'img/decals/fixture.png'];
+for (const base of ['/', '/games/coro-solto/']) {
+  const moduleUrl = `https://games.example.com${base}js/textures.js?v=fixture`;
+  const pathsResolve = (expressions) => expressions.length === textureFiles.length && expressions.every((expression, i) => {
+    const url = vm.runInNewContext(expression.replaceAll('import.meta.url', 'moduleUrl'), { URL, moduleUrl, f: 'fixture.png', n: 'fixture' });
+    return ['', 'about/', 'sobre/'].every((page) => new URL(url, `https://games.example.com${base}${page}`).href === `https://games.example.com${base}${textureFiles[i]}`);
+  });
+  check(`file textures resolve from the module on root and nested pages (${base})`, pathsResolve(textureLoads));
+  const mutant = textureLoads.map((expression) => expression.replace(/^new URL\((.*), import\.meta\.url\)\.href$/, '$1').replace(/^'\.\.\//, "'"));
+  check(`mutation removes module resolution (${base})`, mutant.some((expression, i) => expression !== textureLoads[i]));
+  check(`nested-page invariant rejects document-relative mutant (${base})`, !pathsResolve(mutant));
+}
 
 const apoie = read('src/pages/apoie.astro');
 check('apoie route redirects self-hosted requests to About', /if \(OPEN_GAMES_SELF_HOSTED\) \{[^]*?return Astro\.redirect\(`\$\{base\}\/about\/`\);/.test(apoie));

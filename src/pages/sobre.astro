@@ -70,7 +70,7 @@ const jsonld = [
   </div>
 
   <div class="cta-row">
-    <a class="btn-cta" href="/">▶ Jogar agora - grátis</a>
+    <a class="btn-cta" href={import.meta.env.BASE_URL}>▶ Jogar agora - grátis</a>
     <a class="btn-cta btn-2" href="/como-jogar">Como jogar</a>
   </div>
   <p style="font-size:12px;color:var(--bone-dim);margin-top:10px">Roda no navegador de desktop. Sem instalação, sem cadastro.</p>
@@ -145,6 +145,6 @@ const jsonld = [
     const ls = localStorage.getItem('cs_lang');
     const lang = (q === 'pt' || q === 'en') ? q : (ls === 'pt' || ls === 'en') ? ls
       : (/^pt/i.test(navigator.language || '') ? 'pt' : 'en');
-    if (lang === 'en') location.replace('/about');
+    if (lang === 'en') location.replace(`${import.meta.env.BASE_URL}about`);
   } catch { /* fica */ }
 </script>

@@ -63,7 +63,7 @@ const jsonld = [
   </div>
 
   <div class="cta-row">
-    <a class="btn-cta" href="/?lang=en">▶ Play now - free</a>
+    <a class="btn-cta" href={`${import.meta.env.BASE_URL}?lang=en`}>▶ Play now - free</a>
     <a class="btn-cta btn-2" href="/how-to-play">How to play</a>
   </div>
   <p style="font-size:12px;color:var(--bone-dim);margin-top:10px">Runs in a desktop browser. No installation, no sign-up.</p>
@@ -134,6 +134,6 @@ const jsonld = [
     const ls = localStorage.getItem('cs_lang');
     const lang = (q === 'pt' || q === 'en') ? q : (ls === 'pt' || ls === 'en') ? ls
       : (/^pt/i.test(navigator.language || '') ? 'pt' : 'en');
-    if (lang === 'pt') location.replace('/sobre');
+    if (lang === 'pt') location.replace(`${import.meta.env.BASE_URL}sobre`);
   } catch { /* fica */ }
 </script>
