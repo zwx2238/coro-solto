@@ -46,11 +46,19 @@ check('Layout head-social GitHub stays ungated', !/\{!OPEN_GAMES_SELF_HOSTED && 
 check('Layout PLAY link uses the same explicit game base', layout.includes('class="btn-play" href={GAME_BASE}') && layout.includes("jogar.setAttribute('href', `${GAME_BASE}?lang=en`)"));
 check('Layout imports the same base in server and client code', (layout.match(/import \{ GAME_BASE \} from '\.\.\/lib\/game-base';/g) || []).length === 2);
 check('Layout brand and footer do not jump to the host root', !layout.includes('href="/"'));
-for (const [page, target] of [['about', 'sobre'], ['sobre', 'about']]) {
+for (const [page, target, language] of [['about', 'sobre', 'pt'], ['sobre', 'about', 'en']]) {
   const source = read(`src/pages/${page}.astro`);
   check(`${page} play link uses the game base`, /class="btn-cta" href=\{(?:GAME_BASE|`\$\{GAME_BASE\}\?lang=en`)\}/.test(source));
-  check(`${page} language redirect stays under the game base`, source.includes('location.replace(`${GAME_BASE}' + target + '`)'));
+  check(`${page} language redirect stays under the game base`, source.includes('location.replace(`${GAME_BASE}' + target + '?lang=' + language + '`)'));
   check(`${page} imports the same base in server and client code`, (source.match(/import \{ GAME_BASE \} from '\.\.\/lib\/game-base';/g) || []).length === 2);
+  const script = source.match(/<script>([^]*?)<\/script>/)?.[1]?.replace(/^\s*import[^\n]+;\s*$/m, '') ?? '';
+  const redirects = [];
+  vm.runInNewContext(script, {
+    GAME_BASE: '/services/open-games/games/coro-solto/', URLSearchParams,
+    location: { search: `?lang=${language}`, replace: (url) => redirects.push(url) },
+    localStorage: { getItem: () => null }, navigator: { language: language === 'pt' ? 'en-US' : 'pt-BR' },
+  });
+  check(`${page} redirect retains explicit language against browser preference`, redirects.length === 1 && redirects[0] === `/services/open-games/games/coro-solto/${target}?lang=${language}`);
 }
 const gameBaseExpression = read('src/lib/game-base.ts').match(/export const GAME_BASE = ([^]*);\s*$/)?.[1] ?? '';
 check('game base reads the explicit platform path, never generic BASE_URL', gameBaseExpression.includes('import.meta.env.PUBLIC_OPEN_GAMES_BASE_PATH') && !gameBaseExpression.includes('import.meta.env.BASE_URL'));

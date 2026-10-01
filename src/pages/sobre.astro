@@ -147,6 +147,6 @@ const jsonld = [
     const ls = localStorage.getItem('cs_lang');
     const lang = (q === 'pt' || q === 'en') ? q : (ls === 'pt' || ls === 'en') ? ls
       : (/^pt/i.test(navigator.language || '') ? 'pt' : 'en');
-    if (lang === 'en') location.replace(`${GAME_BASE}about`);
+    if (lang === 'en') location.replace(`${GAME_BASE}about?lang=en`);
   } catch { /* fica */ }
 </script>
