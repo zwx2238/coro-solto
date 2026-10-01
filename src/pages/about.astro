@@ -8,6 +8,7 @@
 import Layout from '../layouts/Layout.astro';
 import { ARMAS, MAPAS, PERSONAGENS, FACCOES } from '../data/jogo';
 import { BRAND_FULL, BRAND_ALT, GAME_ID, abs } from '../lib/site';
+import { GAME_BASE } from '../lib/game-base';
 
 // overlay EN: a DESC_LONG oficial é PT e mora em src/lib/site.ts; aqui a
 // tradução fica local, como os overlays de characters.astro.
@@ -63,7 +64,7 @@ const jsonld = [
   </div>
 
   <div class="cta-row">
-    <a class="btn-cta" href={`${import.meta.env.BASE_URL}?lang=en`}>▶ Play now - free</a>
+    <a class="btn-cta" href={`${GAME_BASE}?lang=en`}>▶ Play now - free</a>
     <a class="btn-cta btn-2" href="/how-to-play">How to play</a>
   </div>
   <p style="font-size:12px;color:var(--bone-dim);margin-top:10px">Runs in a desktop browser. No installation, no sign-up.</p>
@@ -128,12 +129,13 @@ const jsonld = [
 </Layout>
 
 <script>
+  import { GAME_BASE } from '../lib/game-base';
   // espelho do /sobre: usuário em pt cai na gêmea PT (mesmas regras do i18n.js)
   try {
     const q = new URLSearchParams(location.search).get('lang');
     const ls = localStorage.getItem('cs_lang');
     const lang = (q === 'pt' || q === 'en') ? q : (ls === 'pt' || ls === 'en') ? ls
       : (/^pt/i.test(navigator.language || '') ? 'pt' : 'en');
-    if (lang === 'pt') location.replace(`${import.meta.env.BASE_URL}sobre`);
+    if (lang === 'pt') location.replace(`${GAME_BASE}sobre`);
   } catch { /* fica */ }
 </script>

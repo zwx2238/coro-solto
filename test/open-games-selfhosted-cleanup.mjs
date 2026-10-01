@@ -1,8 +1,8 @@
 // Self-hosted cleanup regression: APOIE/support, social, newsletter e /_vercel
 // insights fora do build Open Games. Run: node test/open-games-selfhosted-cleanup.mjs
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import vm from 'node:vm';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -43,10 +43,21 @@ check('Layout reads PUBLIC_OPEN_GAMES_SELF_HOSTED', layout.includes("import.meta
 check('Layout head-social Discord is self-hosted gated', /\{!OPEN_GAMES_SELF_HOSTED && \(\s*<a href=\{DISCORD_URL\} rel="noopener"/.test(layout));
 check('Layout head-social Telegram is self-hosted gated', /\{!OPEN_GAMES_SELF_HOSTED && \(\s*<a href=\{TELEGRAM_URL\} rel="noopener"/.test(layout));
 check('Layout head-social GitHub stays ungated', !/\{!OPEN_GAMES_SELF_HOSTED && \(\s*<a href=\{GITHUB_URL\}/.test(layout));
+check('Layout PLAY link uses the same explicit game base', layout.includes('class="btn-play" href={GAME_BASE}') && layout.includes("jogar.setAttribute('href', `${GAME_BASE}?lang=en`)"));
+check('Layout imports the same base in server and client code', (layout.match(/import \{ GAME_BASE \} from '\.\.\/lib\/game-base';/g) || []).length === 2);
+check('Layout brand and footer do not jump to the host root', !layout.includes('href="/"'));
 for (const [page, target] of [['about', 'sobre'], ['sobre', 'about']]) {
   const source = read(`src/pages/${page}.astro`);
-  check(`${page} play link uses the game base`, /class="btn-cta" href=\{(?:import\.meta\.env\.BASE_URL|`\$\{import\.meta\.env\.BASE_URL\}\?lang=en`)\}/.test(source));
-  check(`${page} language redirect stays under the game base`, source.includes('location.replace(`${import.meta.env.BASE_URL}' + target + '`)'));
+  check(`${page} play link uses the game base`, /class="btn-cta" href=\{(?:GAME_BASE|`\$\{GAME_BASE\}\?lang=en`)\}/.test(source));
+  check(`${page} language redirect stays under the game base`, source.includes('location.replace(`${GAME_BASE}' + target + '`)'));
+  check(`${page} imports the same base in server and client code`, (source.match(/import \{ GAME_BASE \} from '\.\.\/lib\/game-base';/g) || []).length === 2);
+}
+const gameBaseExpression = read('src/lib/game-base.ts').match(/export const GAME_BASE = ([^]*);\s*$/)?.[1] ?? '';
+check('game base reads the explicit platform path, never generic BASE_URL', gameBaseExpression.includes('import.meta.env.PUBLIC_OPEN_GAMES_BASE_PATH') && !gameBaseExpression.includes('import.meta.env.BASE_URL'));
+for (const configuredBase of [undefined, '', '/', '/services/open-games/games/coro-solto', '/services/open-games/games/coro-solto/']) {
+  const expected = configuredBase ? `${configuredBase.replace(/\/+$/, '')}/` : '/';
+  const expression = gameBaseExpression.replaceAll('import.meta.env.PUBLIC_OPEN_GAMES_BASE_PATH', 'configuredBase');
+  check(`game base is absolute and normalized (${configuredBase})`, expression && vm.runInNewContext(expression, { configuredBase }) === expected);
 }
 
 const textures = read('public/js/textures.js');
@@ -96,6 +107,23 @@ if (insightsSource) {
   const mutant = insightsSource.replace('!window.__OPEN_GAMES_SELF_HOSTED__ && ', '');
   check('mutant applies (guard actually removed)', mutant !== insightsSource);
   check('VM catches mutant: unguarded script hits network on self-hosted host', runInsightsScript(mutant, { hostname: 'games.example.com', selfHosted: true }).length === upstream.length);
+}
+
+if (process.argv.includes('--built')) {
+  const base = `${(process.env.PUBLIC_OPEN_GAMES_BASE_PATH ?? '').replace(/\/+$/, '')}/`;
+  const assets = join(root, 'dist/client/_astro');
+  const modules = readdirSync(assets).filter((name) => /^game-base\..*\.js$/.test(name));
+  check('build emits one shared navigation base module', modules.length === 1);
+  if (modules.length === 1) {
+    const exported = Object.values(await import(pathToFileURL(join(assets, modules[0]))));
+    check('built navigation base ignores BASE_URL=./', exported.length === 1 && exported[0] === base);
+  }
+  for (const page of ['about', 'sobre']) {
+    const html = read(`dist/client/${page}/index.html`);
+    check(`built ${page} play CTA stays under the game path`, html.includes(`class="btn-cta" href="${base}${page === 'about' ? '?lang=en' : ''}"`));
+    check(`built ${page} header PLAY stays under the game path`, html.includes(`class="btn-play" href="${base}"`));
+    check(`built ${page} brand stays under the game path`, html.includes(`class="brand" href="${base}"`));
+  }
 }
 
 if (failures > 0) {

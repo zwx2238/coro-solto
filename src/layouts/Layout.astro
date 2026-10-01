@@ -39,6 +39,7 @@
 import { SITE, BRAND, BRAND_FULL, BRAND_ALT, DESC_SHORT, ORG_ID, WEBSITE_ID, abs, RANKING_ON, DISCORD_URL, TELEGRAM_URL, GITHUB_URL } from '../lib/site';
 import { PT_EN_PAIRS } from '../lib/i18n-pairs';
 import pkg from '../../package.json';
+import { GAME_BASE } from '../lib/game-base';
 
 const V = pkg.version;
 /* Build self-hosted (Open Games): sem comunidades nem pedidos de apoio — o site
@@ -584,7 +585,7 @@ body>footer a:hover{color:var(--amber)}
         2. WebP animado, 96 KB, 24 quadros - mesmo conteúdo do GIF por 26% do
            peso. É o caminho de 97% dos navegadores.
         3. <img> GIF, 368 KB: só para quem não decodifica WebP animado. */}
-  <a class="brand" href="/" aria-label={`${BRAND_FULL} - página inicial`}>
+  <a class="brand" href={GAME_BASE} aria-label={`${BRAND_FULL} - página inicial`}>
     <img class="brand-logo" src="/logo.png" width="651" height="526" alt={BRAND_FULL}>
     <picture class="brand-bird" aria-hidden="true">
       <source media="(prefers-reduced-motion: reduce)" srcset="/img/canarinho-pistola.png">
@@ -600,7 +601,7 @@ body>footer a:hover{color:var(--amber)}
   </nav>
   {/* O jogo é a rota `/`, e ele é o produto: o link pra ele é botão cheio, nunca
       um item de texto igual aos outros. É a hierarquia da referência. */}
-  <a class="btn-play" href="/">▶ JOGAR</a>
+  <a class="btn-play" href={GAME_BASE}>▶ JOGAR</a>
   <nav class="head-social" aria-label="Redes sociais">
     {!OPEN_GAMES_SELF_HOSTED && (
       <a href={DISCORD_URL} rel="noopener" aria-label="Discord do CORO SOLTO">
@@ -631,7 +632,7 @@ body>footer a:hover{color:var(--amber)}
   <slot />
 </main>
 <footer>
-  <a href="/" aria-label={`${BRAND_FULL} - página inicial`}>
+  <a href={GAME_BASE} aria-label={`${BRAND_FULL} - página inicial`}>
     <img class="foot-logo" src="/logo.png" width="651" height="526" alt="" loading="lazy">
   </a>
   <div><strong style="color:var(--bone)">{BRAND_FULL}</strong> · FPS de navegador, grátis e sem instalação</div>
@@ -652,6 +653,7 @@ body>footer a:hover{color:var(--amber)}
   </div>
 </footer>
 <script>
+  import { GAME_BASE } from '../lib/game-base';
   /* NAV + RODAPÉ em EN (mesma régua de idioma das páginas gêmeas e do jogo:
      ?lang= > localStorage cs_lang > navigator.language). As gêmeas EN existem
      para personagens/mapas/armas/como-jogar/sobre - rótulo e href trocam juntos.
@@ -682,7 +684,7 @@ body>footer a:hover{color:var(--amber)}
         if (g) { a.setAttribute('href', g[0]); a.textContent = g[2]; }
       });
       const jogar = document.querySelector('.btn-play');
-      if (jogar) { jogar.setAttribute('href', '/?lang=en'); jogar.textContent = '▶ PLAY'; }
+      if (jogar) { jogar.setAttribute('href', `${GAME_BASE}?lang=en`); jogar.textContent = '▶ PLAY'; }
       // as 3 linhas de prosa do rodapé: troca o texto inteiro quando acha o marcador PT
       document.querySelectorAll('footer div').forEach((d) => {
         const t = d.textContent;
