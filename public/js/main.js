@@ -283,7 +283,8 @@ function rebuildMenuBackdrop() {
 preloadMapProps(MAP_PROPS).then(() => { rebuildMenuBackdrop(); _splashSetReady(); }).catch(() => _splashSetReady());
 
 /* ---------------- screens ---------------- */
-const screens = ['mobile-warning', 'main-menu', 'map-screen', 'team-select', 'char-select', 'settings-panel', 'howto-panel', 'ranking-panel', 'feedback-panel', 'support-panel', 'pause-menu', 'match-end'];
+const screens = ['mobile-warning', 'main-menu', 'map-screen', 'team-select', 'char-select', 'settings-panel', 'howto-panel', 'ranking-panel', 'feedback-panel', 'support-panel', 'pause-menu', 'match-end']
+  .filter((s) => !(selfHosted && s === 'support-panel'));
 function show(id) {
   for (const s of screens) document.getElementById(s).classList.toggle('hidden', s !== id);
   if (!id) for (const s of screens) document.getElementById(s).classList.add('hidden');
@@ -1342,7 +1343,7 @@ csItems.forEach((it) => {
       case 'ctf':   openModeMap('ctf', 'CAPTURE THE FLAG', 'ctf'); break;
       /* MAPA saiu (mapa se escolhe no fluxo de partida); FEEDBACK entrou (07/08) */
       case 'feedback': markCurrent('feedback'); show('feedback-panel'); break;
-      case 'apoie': markCurrent('apoie'); showSupport(); break;
+      case 'apoie': if (!selfHosted) { markCurrent('apoie'); showSupport(); } break;
       case 'config': markCurrent('config'); show('settings-panel'); break;
       case 'ranking': markCurrent('ranking'); showRanking(); break;
       case 'sobre': markCurrent('sobre'); howtoReturn = 'main-menu'; show('howto-panel'); break;
@@ -1453,10 +1454,9 @@ $('btn-jogar').onclick = async () => {
 };
 $('btn-ranking').onclick = () => { sfx.uiClick(); showRanking(); };
 $('ranking-back').onclick = () => { ui.back(); markCurrent(null); show('main-menu'); };
-/* FEEDBACK: email + consentimento obrigatórios ANTES de enviar — a tabela é a
-   semente da newsletter (migration 013), então não entra linha sem os dois. */
+/* FEEDBACK: email obrigatório; aceite da newsletter OPCIONAL (false por padrão) —
+   o contrato da API continua {email, newsletter, message, map, version}. */
 $('fb-back').onclick = () => { ui.back(); markCurrent(null); show('main-menu'); };
-$('support-back').onclick = () => { ui.back(); markCurrent(null); show('main-menu'); };
 const supportLink = $('support-link');
 const supportNote = $('support-region-note');
 /* URLs vêm RESOLVIDAS do servidor (index.astro injeta window.__SUPPORT a partir do
@@ -1480,18 +1480,21 @@ function showSupport(region) {
   botaoIntl.classList.toggle('active', !br);
   show('support-panel');
 }
-$('support-br').onclick = () => showSupport('br');
-$('support-intl').onclick = () => showSupport('intl');
+/* Self-hosted não serve o painel de apoio; handlers em elemento ausente quebram o boot. */
+if (!selfHosted) {
+  $('support-back').onclick = () => { ui.back(); markCurrent(null); show('main-menu'); };
+  $('support-br').onclick = () => showSupport('br');
+  $('support-intl').onclick = () => showSupport('intl');
+}
 $('fb-send').onclick = async () => {
   ui.click();
   const msg = $('fb-msg').value.trim(), email = $('fb-email').value.trim();
-  const news = $('fb-news').checked, st = $('fb-status');
+  const news = selfHosted ? false : $('fb-news').checked, st = $('fb-status');
   const falha = (t, campo) => { st.textContent = t; st.classList.add('erro'); campo?.classList.add('invalid');
     setTimeout(() => campo?.classList.remove('invalid'), 600); };
   st.classList.remove('erro');
   if (msg.length < 3) return falha(tr('escreve o feedback primeiro'), $('fb-msg'));
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return falha(tr('preenche um email válido'), $('fb-email'));
-  if (!news) return falha(tr('marca o aceite da newsletter pra enviar'), null);
   $('fb-send').disabled = true; st.textContent = tr('enviando…');
   const res = await api('/api/feedback', { email, newsletter: news, message: msg, map: currentMap, version: VERSION });
   $('fb-send').disabled = false;

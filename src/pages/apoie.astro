@@ -2,37 +2,46 @@
 import Layout from '../layouts/Layout.astro';
 import { BRAND_FULL, SUPPORT_URL_BR, SUPPORT_URL_INTL } from '../lib/site';
 
+const OPEN_GAMES_SELF_HOSTED = import.meta.env.PUBLIC_OPEN_GAMES_SELF_HOSTED === '1';
+if (OPEN_GAMES_SELF_HOSTED) {
+  const base = (import.meta.env.PUBLIC_OPEN_GAMES_BASE_PATH ?? '').replace(/\/+$/, '');
+  return Astro.redirect(`${base}/about/`);
+}
 const title = `Apoie o ${BRAND_FULL}`;
 ---
 
 <Layout title={title} h1="APOIE O JOGO" kicker="APOIO · COMUNIDADE" heroImg="/img/map-previews/praca_poderes.jpg">
-  <Fragment slot="sub">
-    O jogo é gratuito e ainda está em alpha. Se você quer ajudar a manter o projeto vivo,
-    pode contribuir com qualquer valor.
-  </Fragment>
+  {!OPEN_GAMES_SELF_HOSTED ? (
+    <>
+      <Fragment slot="sub">
+        O jogo é gratuito e ainda está em alpha. Se você quer ajudar a manter o projeto vivo,
+        pode contribuir com qualquer valor.
+      </Fragment>
 
-  <section class="support-page" aria-labelledby="support-title">
-    <div class="support-lead">
-      <p class="eyebrow">META INICIAL</p>
-      <h2 id="support-title">Ajude a pagar o próximo passo</h2>
-      <p>Servidor, domínio, ferramentas e tempo de desenvolvimento. O apoio não compra vantagem dentro do jogo: ele ajuda o jogo a continuar gratuito.</p>
-    </div>
-    <div class="support-grid">
-      <article class="support-card">
-        <p class="eyebrow">BRASIL · PIX</p>
-        <h2>MeApoia</h2>
-        <p>Para apoiar pelo Pix, abra a campanha brasileira no MeApoia.</p>
-        <a class="support-cta" href={SUPPORT_URL_BR} target="_blank" rel="noopener">ABRIR ME APOIA ↗</a>
-      </article>
-      <article class="support-card">
-        <p class="eyebrow">OUTROS PAÍSES</p>
-        <h2>International support</h2>
-        <p>Fora do Brasil, a página internacional aceita cartão e outras opções, sem exigir Pix.</p>
-        <a class="support-cta" href={SUPPORT_URL_INTL} target="_blank" rel="noopener">OPEN SUPPORT ↗</a>
-      </article>
-    </div>
-    <p class="support-small">Quer ajudar sem dinheiro? Jogar, enviar feedback e compartilhar o jogo também ajudam muito.</p>
-  </section>
+      <section class="support-page" aria-labelledby="support-title">
+        <div class="support-lead">
+          <p class="eyebrow">META INICIAL</p>
+          <h2 id="support-title">Ajude a pagar o próximo passo</h2>
+          <p>Servidor, domínio, ferramentas e tempo de desenvolvimento. O apoio não compra vantagem dentro do jogo: ele ajuda o jogo a continuar gratuito.</p>
+        </div>
+        <div class="support-grid">
+          <article class="support-card">
+            <p class="eyebrow">BRASIL · PIX</p>
+            <h2>MeApoia</h2>
+            <p>Para apoiar pelo Pix, abra a campanha brasileira no MeApoia.</p>
+            <a class="support-cta" href={SUPPORT_URL_BR} target="_blank" rel="noopener">ABRIR ME APOIA ↗</a>
+          </article>
+          <article class="support-card">
+            <p class="eyebrow">OUTROS PAÍSES</p>
+            <h2>International support</h2>
+            <p>Fora do Brasil, a página internacional aceita cartão e outras opções, sem exigir Pix.</p>
+            <a class="support-cta" href={SUPPORT_URL_INTL} target="_blank" rel="noopener">OPEN SUPPORT ↗</a>
+          </article>
+        </div>
+        <p class="support-small">Quer ajudar sem dinheiro? Jogar, enviar feedback e compartilhar o jogo também ajudam muito.</p>
+      </section>
+    </>
+  ) : null}
 
   <style>
     .support-page { display:grid; gap:24px; }
